@@ -76,23 +76,36 @@ int main()
         fsm->sendEvent(&e);
     };
 
-    // Note that stop_token requests stop automatically when a jthread
+    // Tell which FSMs are running
+    auto printActive = [&](std::string str) {
+        Logger().atomic_print(str,
+                              " RED active = ", redFSM->isActive(),
+                              ", GREEN active = ", greenFSM->isActive(),
+                              ", BLUE active = ", blueFSM->isActive());
+    };
+
+    // Run the combined FSM sequentially 3 times, each time starting from a different state.
+    // Note that stop_token requests the stop automatically when a jthread
     // is about to go out of scope.
     {
         cout << "---------------- Start the cycle with RED ----------------\n";
         std::jthread thread(kickOff, redFSM);
-        std::this_thread::sleep_for(3000ms);
+        std::this_thread::sleep_for(3000ms); // Sleep, then request stop.
+        printActive("Activity before stop:"); // Only 1 of 3 should be running
     }
     {
         cout << "---------------- Start the cycle with GREEN ---------------- \n";
         std::jthread thread(kickOff, greenFSM);
-        std::this_thread::sleep_for(3000ms);
+        std::this_thread::sleep_for(3000ms); // Sleep, then request stop.
+        printActive("Activity before stop:"); // Only 1 of 3 should be running
     }
     {
         cout << "---------------- Start the cycle with BLUE ----------------\n";
         std::jthread thread(kickOff, blueFSM);
-        std::this_thread::sleep_for(3000ms);
+        std::this_thread::sleep_for(3000ms); // Sleep, then request stop.
+        printActive("Activity before stop:"); // Only 1 of 3 should be running
     }
+    printActive("Activity after stop:"); // All 3 should be stopped.
 
     // Re-configure transitions so that each FSM "hands over" to itself instead of another FSM,
     // making the FSMs independent.
@@ -109,7 +122,9 @@ int main()
         std::jthread greenThread(kickOff, greenFSM);
         std::jthread blueThread(kickOff, blueFSM);
         std::this_thread::sleep_for(2s);
+        printActive("All 3 are running in parallel:"); // All 3 should be active
     }
+    printActive("All 3 have stopped:"); // All 3 should be inactive
 
     cout << "RED   fsm is suspended at state " << redFSM->currentState() <<  '\n';
     cout << "GREEN fsm is suspended at state " << greenFSM->currentState() <<  '\n';

@@ -105,7 +105,7 @@ int main()
 
     // Make the first event which will start the show.
     Event e;
-    e.construct("StartEvent", numRoundsToRepeat); // Repeat the on-off cycle 4 times
+    e.construct("StartEvent", numRoundsToRepeat); // Cycle around the ring numRoundsToRepeat times.
     ring.sendEvent(&e);
 
     std::cout << ring.name() << "' is suspended at state '" << ring.currentState() << "'\n";

@@ -145,11 +145,12 @@ CoFSM::State transmissionInProgressState(CoFSM::FSM& fsm, int speedWordsPerMinut
 CoFSM::State transmitReadyState(CoFSM::FSM& fsm)
 {
     std::unordered_map<char, std::string_view> map; // Map characters to morse codes
-    map[' ']=" "; map['A']=".-"; map['B']="-..."; map['C']="-.-."; map['D']="-..";  map['E']=".";
-    map['F']="..-."; map['G']="--."; map['H']="...."; map['I']=".."; map['J']=".---";
-    map['K']="-.-"; map['L']=".-.."; map['M']="--"; map['N']="-."; map['O']="---";
-    map['P']=".--."; map['Q']="--.-"; map['R']=".-."; map['S']="..."; map['T']="-";
-    map['U']="..-"; map['V']="...-"; map['W']=".--";  map['X']="-..-"; map['Y']="-.--";  map['Z']="--..";
+    map[' ']=" ";     map['A']=".-";    map['B']="-...";  map['C']="-.-.";  map['D']="-..";
+    map['E']=".";     map['F']="..-.";  map['G']="--.";   map['H']="....";  map['I']="..";
+    map['J']=".---";  map['K']="-.-";   map['L']=".-..";  map['M']="--";    map['N']="-.";
+    map['O']="---";   map['P']=".--.";  map['Q']="--.-";  map['R']=".-.";   map['S']="...";
+    map['T']="-";     map['U']="..-";   map['V']="...-";  map['W']=".--";   map['X']="-..-";
+    map['Y']="-.--";  map['Z']="--..";
     map['1']=".----"; map['2']="..---"; map['3']="...--"; map['4']="....-"; map['5']=".....";
     map['6']="-...."; map['7']="--..."; map['8']="---.."; map['9']="----."; map['0']="-----";
 
@@ -234,7 +235,7 @@ int main()
     std::vector<std::string> text {"Hello World ", "SOS SOS ", "Wikipedia the free encyclopedia"};
     for (const auto& str : text) {
         std::cout << "Message = '" << str << "'\n";
-        e.construct("TransmitMessageEvent", str); // Repeat the on-off cycle 4 times
+        e.construct("TransmitMessageEvent", str);
         morse.sendEvent(&e);
     }
     cout << "\n'" << morse.name() << "' is suspended at state '" << morse.currentState() << "'\n";
