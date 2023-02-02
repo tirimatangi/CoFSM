@@ -75,7 +75,7 @@ In this case, the data is an integer counter.
 - **#5** Events are reusable. A new name and new data can be attached to an existing event.
 If the new data needs more space than the old one, the storage of the event is automatically expanded.
 - **#6** The event can also be cleared to make it empty and nameless. Sending such an event will suspend the FSM.
-The `Event` type is explained more thoroughly [below](#cofsm-event).
+The `Event` type is explained more thoroughly [below](#cofsmevent).
 - **#7** Now the event is ready to be sent. `fsm.emitAndReceive` will dispatch the current event and suspend the state.
 When another state later sends an event which is routed to this state, this state will be be resumed and
 `fsm.emitAndReceive` returns with the new event.
