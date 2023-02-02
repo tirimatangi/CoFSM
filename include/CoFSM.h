@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <initializer_list>
 #include <assert.h>
+#include <atomic>
 
 namespace CoFSM {
 
@@ -544,11 +545,10 @@ public:
             // If a state emits an empty event all states will remain suspended.
             // Consequently, the FSM will stopped. It can be restarted by calling sendEvent()
             if (onEvent.isEmpty()) {
-                self->_bIsActive = false;
+                self->_bIsActive.store(false, std::memory_order_relaxed);
                 return std::noop_coroutine();
             }
 
-            self->_bIsActive = true;
             // Find the destination for {fromState, onEvent}-pair.
             TransitionTarget to;
             if (auto it = self->_mapTransitionTable.find({fromState, onEvent.name()}); it != self->_mapTransitionTable.end())
@@ -566,6 +566,7 @@ public:
                 if (self->logger)
                     self->logger(self->name(), fromState.promise().name, onEvent, to.state.promise().name);
 
+                self->_bIsActive.store(true, std::memory_order_relaxed);
                 return to.state;
             } else { // The target state lives in another FSM.
                 // Note: self FSM will suspend and self->state remains in the state where
@@ -577,6 +578,10 @@ public:
 
                 if (self->logger)
                     self->logger(self->name()+"-->"+to.fsm->name(), fromState.promise().name, to.fsm->_event, to.state.promise().name);
+
+                // Self is suspended and to.fsm is resumed.
+                self->_bIsActive.store(false, std::memory_order_relaxed);
+                to.fsm->_bIsActive.store(true, std::memory_order_relaxed);
 
                 return to.state;
             }
@@ -607,7 +612,7 @@ public:
         void await_suspend(StateHandle) {}
         Event await_resume()
         {
-            self->_bIsActive = true;
+            self->_bIsActive.store(true, std::memory_order_relaxed);
             if (self->_event.isEmpty())
                 throw std::runtime_error("FSM '" + self->name() + "': An empty event has been sent to state " + self->currentState());
             return std::move(self->_event);
@@ -708,7 +713,7 @@ public:
 
     // Returns true if the FSM is running and false if all states
     // are suspended and waiting for an event.
-    bool isActive() const { return _bIsActive; }
+    const std::atomic<bool>& isActive() const { return _bIsActive; }
 
     // Callback for debugging and writing log. It is called when the state of
     // the fsm whose name is in the first argument is about
@@ -764,7 +769,7 @@ private:
     std::vector<State> _vecStates;
 
     // True if the FSM is running, false if suspended.
-    bool _bIsActive = false;
+    std::atomic<bool> _bIsActive = false;
 }; // FSM
 
 } // namespace CoFSM

@@ -147,13 +147,15 @@ FSM* makeGreenFsm()
     using CoFSM::transition;
     // Register and name the states.
     greenFSM << (greenIdleState(greenFSM)   = "GreenIdleState")
-           << (greenActiveState(greenFSM) = "GreenActiveState");
+             << (greenActiveState(greenFSM) = "GreenActiveState");
 
     // Configure the transition table:
     //   When BlinkReady event is sent from Active state, go to Idle state.
     greenFSM << transition("GreenActiveState", "BlinkReadyEvent",  "GreenIdleState")
-    //   When StartBlonk event is sent from Idle state, go to Active state.
-           << transition("GreenIdleState", "StartBlinkEvent",  "GreenActiveState");
+    //   When StartBlink event is sent from Idle state, go to Active state.
+             << transition("GreenIdleState", "StartBlinkEvent",  "GreenActiveState")
+    //   HandOver event (which contains stop token) is sent to self
+             << transition("GreenIdleState", "HandOverEvent",  "GreenIdleState");
 
     return &greenFSM;
 }

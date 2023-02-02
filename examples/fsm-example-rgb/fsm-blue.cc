@@ -147,13 +147,15 @@ FSM* makeBlueFsm()
     using CoFSM::transition;
     // Register and name the states.
     blueFSM << (blueIdleState(blueFSM)   = "BlueIdleState")
-           << (blueActiveState(blueFSM) = "BlueActiveState");
+            << (blueActiveState(blueFSM) = "BlueActiveState");
 
     // Configure the transition table:
     //   When BlinkReady event is sent from Active state, go to Idle state.
     blueFSM << transition("BlueActiveState", "BlinkReadyEvent",  "BlueIdleState")
-    //   When StartBlonk event is sent from Idle state, go to Active state.
-           << transition("BlueIdleState", "StartBlinkEvent",  "BlueActiveState");
+    //   When StartBlink event is sent from Idle state, go to Active state.
+            << transition("BlueIdleState", "StartBlinkEvent",  "BlueActiveState")
+    //   HandOver event (which contains stop token) is sent to self
+            << transition("BlueIdleState", "HandOverEvent",  "BlueIdleState");
 
     return &blueFSM;
 }

@@ -152,8 +152,10 @@ FSM* makeRedFsm()
     // Configure the transition table:
     //   When BlinkReady event is sent from Active state, go to Idle state.
     redFSM << transition("RedActiveState", "BlinkReadyEvent",  "RedIdleState")
-    //   When StartBlonk event is sent from Idle state, go to Active state.
-           << transition("RedIdleState", "StartBlinkEvent",  "RedActiveState");
+    //   When StartBlink event is sent from Idle state, go to Active state.
+           << transition("RedIdleState", "StartBlinkEvent",  "RedActiveState")
+    //   HandOver event (which contains stop token) is sent to self
+           << transition("RedIdleState", "HandOverEvent",  "RedIdleState");
 
     return &redFSM;
 }
