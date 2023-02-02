@@ -1,5 +1,5 @@
-# CoFSM
-CoFSM is C++20 a header-only Finite State Machine library.
+# CoFSM - A Finite State Machine library based on Coroutine Symmetric Transfer
+CoFSM is a C++20 header-only Finite State Machine library.
 The states are represented as coroutines which `co_await` for events.
 This makes it possible to do things like
 - Suspend the execution of FSM and later resume either from the state where it left off when it was suspended, or from any other state (see the [first example](#first-example)).
@@ -191,6 +191,7 @@ Caps Lock / Num Lock / Scroll Lock LEDs in the keyboard.
 It should look like this:
 
 ![Morse code with CoFSM (video)](examples/fsm-example-morse/SOS.gif)
+
 If you don't have `sudo` access, the dots and dashes will appear on display.
 
 The state diagram goes like this.
