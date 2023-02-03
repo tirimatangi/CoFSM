@@ -2,7 +2,7 @@
 CoFSM is a C++20 header-only Finite State Machine library.
 The states are represented as coroutines which `co_await` for events.
 This makes it possible to do things like
-- Suspend the execution of FSM and later resume either from the state where it left off when it was suspended, or from any other state (see the [first example](#first-example)).
+- Suspend the execution of FSM and later resume either from the state where it left off when it was suspended, or from another other state (see the [first example](#first-example)).
 - Make changes to the transition table during the life-time of the FSM object (see [this example](#example-connect-and-separate-fsms-running-in-separate-threads-in-runtime)).
 - Programmatically create arbitrarily many states and arbitrarily large transition tables without manual configuration (see [this example](#example-configure-an-fsm-programmatically-and-measure-the-speed-of-execution)).
 - Connect and disconnect FSMs living in separate source files without having to recompile everything. So a state in one FSM can send an event to a state in another FSM (see [this example](#example-connect-and-separate-fsms-running-in-separate-threads-in-runtime)).
@@ -124,8 +124,7 @@ FSM& setup(FSM& fsm)  // #9
 - **#9** Setup function will register the states and transitions into the FSM.
 - **#10** Fire up the state coroutines, give the states symbolic names and register them into the FSM. At this point, the state coroutines remain suspended.
 - **#11** Set the transition table so that when "ping" state sends "ToPong" event, it will be routed to "pong" state. And vice versa.
-- **#12** Register a logger which track the transitions and greatly help understand what is going in the state machine. This is typically needed only when debugging.
-
+- **#12** Register a logger which track the transitions and greatly help understand what is going in the state machine. This and the listings of the states and transitions before #12 are needed for debugging only.
 ```c++
 int main()
 {
@@ -155,7 +154,7 @@ int main()
 - **#16** Give the event a name and set the data.
 Remember from the state coroutine above that the data is a counter which says how many times the ping and pong states will exchange events.
 - **#17** Set the initial state as "ping" and send the first event. Ping state will resume, receive the event and the FSM will start running.
-- **#18** `sendEvent` returns when the FSM is time suspended. In this case it happens which the states have ping-pong'ed the events 2 times.
+- **#18** `sendEvent` returns when the FSM is time suspended. In this case it happens which the states have ping-pong'ed the events back and forth twice.
 - **#19**  Run the FSM again by repeating steps **#16** - **#18** but this time starting from "pong" state.
 
 **Output:**
@@ -208,7 +207,7 @@ When a symbol has been transmitted, `TransmissionReadyEvent` is received. See li
 This state does not care how the 'sound' is actually implemented. In our case, there will be a flicker of LED or a dot/dash on display instead of audible sound. Once the dot/dash has been done, `BeebDoneEvent` is received. When all dot and dashes have been transmitted, a `TransmissionReadyEvent` is sent.
 See lines 98-142 in [fsm-example-morse](examples/fsm-example-morse/fsm-example-morse.cc).
 
-`State soundOnState(FSM& fsm, SoundControl* soundControl)` is aware of the HW which either sounds the beep (or does something else.)
+`State soundOnState(FSM& fsm, SoundControl* soundControl)` is aware of the HW which sounds the beep (or does something else.)
 Pointer to HW control was given as a parameter when the state coroutine was initialized.
 It receives a `DoBeepEvent`, turns the sound on and waits for the number of milliseconds given in the event. It then turns the sound off and sends `BeepDoneEvent`.
 See lines 77-94 in [fsm-example-morse](examples/fsm-example-morse/fsm-example-morse.cc).
@@ -392,11 +391,12 @@ The coroutine which makes states in the ring is unimaginatively called `ringStat
     unsigned numEventsProcessed = 0;        // Number of times a state in the ring has received an event
 
     // Register the states in the ring of states.
-    // They don't need individual names as they will be referred by the number 0...statesInRing-1
+    // They don't need individual names as they will be referred to by a number 0...statesInRing-1
     for (int i = 0; i < statesInRing; ++i)
         ring << ringState(ring, numEventsProcessed);
 ```
-Since the states don't have names, they will be referred to by an integer index. The state at index 0 is the first one that was createsd in the avobe loop. Now configure the transition table so that `ClockwiseEvent` sent by state $i$ is routed to state $i+1$ and `CounterClockwiseEvent` sent by state $i+1$ is routed to state $i$.
+Since the states don't have names, they will be referred to by an integer index. The state at index 0 is the first one that was created in the loop. <br>
+Now configure the transition table so that `ClockwiseEvent` sent by state $i$ is routed to state $i+1$ and `CounterClockwiseEvent` sent by state $i+1$ is routed to state $i$.
 ```c++
     // Configure transitions clockwise from state i to state i+1
     // and counter clockwise from state i+1 to state i.
@@ -405,7 +405,7 @@ Since the states don't have names, they will be referred to by an integer index.
         ring << transition(ring.getStateAt(i+1), "CounterClockwiseEvent", ring.getStateAt(i));
     }
 ```
-Next, make (and name) the special `ready` state and configure it so that `ClockwiseEvent` sent by the `ready` state is routed to the first state of the ring and `CounterClockwiseEvent`sent by the last state of the ring is routed to Ready state. And that's it. Now we can start the state coroutines and set the initial state as `ready`.
+Next, register (and name) the special `ready` state and configure it so that `ClockwiseEvent` sent by the `ready` state is routed to the first state of the ring and `CounterClockwiseEvent`sent by the last state of the ring is routed to Ready state. And that's it. Now we can start the state coroutines and set the initial state as `ready`.
 ```c++
     // Register and name the ready state where the ring of states begin and end.
     ring << (readyState(ring, runningTimeSecs) = "ready");
@@ -429,10 +429,10 @@ Now pass the event around the ring `numRoundsToRepeat` times both clockwise and 
 ```
 **Output:**
 ```
-Based on 10000 rounds around the ring of 1023 states in 0.874956 secs, meaning 10240000 events sent,
-the speed of FSM's execution is 2.3384e+07 state transitions per second
+Based on 10000 rounds around the ring of 1023 states in 0.868624 secs, meaning 10240000 events sent,
+the speed of FSM's execution is 1.17888e+07 state transitions per second.
 ```
-It was pretty fast, actually. An ancient Core i5-4210U running at 2.7 GHz did about 23 million state transitions per second. This means that a single resume-run-suspend cycle took 115 clock cycles on average.
+It was pretty fast, actually. An ancient Core i5-4210U running at 2.7 GHz did about 12 million state transitions per second. This means that a single resume-run-suspend cycle took 229 clock cycles on average.
 
 Runnable code and makefile can be found in folder [fsm-example-ring](examples/fsm-example-ring)
 
@@ -445,7 +445,8 @@ The library consists of the classes, `FSM`, `Event` and `State`. The classes and
 - `FSM(std::string fsmName)` constructor of the FSM class. The name of the FSM is for information only and can be omitted.
 - `const std::string& name()` returns the name of the FSM given in the constructor.
 - `const CoFSM::Event& latestEvent()` returns const ref to the latest event which was sent to a state. If the FSM is suspended, the event is empty.
-- `const std::string& currentState()` returns the name of the state to which the latest event was routed. If the state has not been assigned a symbolic name, the returned value will be the address of the coroutine converted to string.
+- `const std::string& currentState()` returns the name of the state to which the latest event was routed. If the state has not been assigned a symbolic name, the returned value will be the address of the coroutine converted to string. <br>
+If a state wants to find out its name, it can do so by calling `fsm->currentState()` where `fsm` is the reference given to the state coroutine.
 - `FSM& setState(std::string_view stateName)` sets the current state to which the first event will be sent (see `sendEvent`) and returns ref to self.
 - `FSM& sendEvent(Event* pEvent)` sends the event to the current state and returns ref to self.
 - `FSM& start()` initializes the state coroutines by resuming them from the initial suspend. After this, the states are ready to receive an event. Returns ref to self to enable call chaining like `myFSM.start().setState("InitialState").sendEvent(&myEvent)`
@@ -466,6 +467,9 @@ For example, `myFSM << (myState(fsm) = "ThisIsMyState")` calls state coroutine `
 For example `event = co_await fsm.emitAndReceive(&event);` sends the event and replaces its contents with the next event. This function is used in every example above.
 - `const State& getStateAt(std::size_t i)` return reference to the _i_'th state. The state which was first registered (see operator<< above) has index zero. This method was used in configuring the transtion table in [this example](#example-configure-an-FSM-programmatically-and-measure-the-speed-of-execution).
 - `std::size_t numberOfStates()` returns the number of states. So indices `i=0...fsm.numberOfStates()-1` are valid arguments to `fsm.getStateAt(i)` method.
+- `std::size_t findIndex(std::string_view name)` returns the index of the state whose name is `name`. The value is on range `0...fsm.numberOfStates()-1`.
+- `const State& findState(std::string_view name)` returns const ref to the state with the given name.
+- bool hasState(std::string_view name)` returns true if the FSM has a state with the given name.
 - `logger` is a member variable of type `std::function`. <br>
 It holds a callable of type `void logger(const std::string& fsmName, const std::string& fromState, const Event& event, const std::string& toState)`. The function is called every time state `fromState` sends an `event` which will be routed to `toState`. The function is called just before `toState` is resumed. For example
 ```c++
