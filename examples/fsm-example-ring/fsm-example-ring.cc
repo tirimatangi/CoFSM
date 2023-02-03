@@ -113,11 +113,7 @@ int main()
               << statesInRing << " states in " << runningTimeSecs <<" secs, meaning "
               << (numEventsProcessed + numRoundsToRepeat) << " events sent,\n"
               << "the speed of FSM's execution is "
-              << (numEventsProcessed + numEventsProcessed) / runningTimeSecs
+              << (numEventsProcessed + numRoundsToRepeat) / runningTimeSecs
               << " state transitions per second\n";
     return 0;
 }
-
-// Core i5-4210U processor consumes 2.7*10^9 cycles for
-// 21.5*10^6 {resume->receive event->send event->suspend} operations,
-// meaning that it takes about 126 cycles from resuming to suspending a state coroutine.
