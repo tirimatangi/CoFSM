@@ -81,7 +81,7 @@ When another state later sends an event which is routed to this state, this stat
 `fsm.emitAndReceive` returns with the new event.
 
 ```c++
-// debug helper which tracks the transtions within an FSM.
+// debug helper which tracks the transitions within an FSM.
 struct Logger  // #8
 {
     std::ostream& str;
@@ -124,7 +124,7 @@ FSM& setup(FSM& fsm)  // #9
 - **#9** Setup function will register the states and transitions into the FSM.
 - **#10** Fire up the state coroutines, give the states symbolic names and register them into the FSM. At this point, the state coroutines remain suspended.
 - **#11** Set the transition table so that when "ping" state sends "ToPong" event, it will be routed to "pong" state. And vice versa.
-- **#12** Register a logger which track the transitions and greatly help understand what is going in the state machine. This and the listings of the states and transitions before #12 are needed for debugging only.
+- **#12** Register a logger which tracks the transitions and greatly helps understand what is going in the state machine. This and the listings of the states and transitions before #12 are needed for debugging only.
 ```c++
 int main()
 {
@@ -154,7 +154,7 @@ int main()
 - **#16** Give the event a name and set the data.
 Remember from the state coroutine above that the data is a counter which says how many times the ping and pong states will exchange events.
 - **#17** Set the initial state as "ping" and send the first event. Ping state will resume, receive the event and the FSM will start running.
-- **#18** `sendEvent` returns when the FSM is time suspended. In this case it happens which the states have ping-pong'ed the events back and forth twice.
+- **#18** `sendEvent` returns when the FSM is time suspended. In this case it happens when the states have ping-pong'ed the events back and forth twice.
 - **#19**  Run the FSM again by repeating steps **#16** - **#18** but this time starting from "pong" state.
 
 **Output:**
@@ -465,7 +465,7 @@ For example, `myFSM << (myState(fsm) = "ThisIsMyState")` calls state coroutine `
 - `Awaitable getEvent()` returns an awaitable object. `event = co_await fsm.getEvent()` returns the next event sent to this state. This function is used in every example above.
 - `Awaitable emitAndReceive(Event* e)` sends the event pointed by the parameter and returns an awaitable object which returns the next event sent to this state. <br>
 For example `event = co_await fsm.emitAndReceive(&event);` sends the event and replaces its contents with the next event. This function is used in every example above.
-- `const State& getStateAt(std::size_t i)` return reference to the _i_'th state. The state which was first registered (see operator<< above) has index zero. This method was used in configuring the transtion table in [this example](#example-configure-an-FSM-programmatically-and-measure-the-speed-of-execution).
+- `const State& getStateAt(std::size_t i)` return reference to the _i_'th state. The state which was first registered (see operator<< above) has index zero. This method was used in configuring the transition table in [this example](#example-configure-an-FSM-programmatically-and-measure-the-speed-of-execution).
 - `std::size_t numberOfStates()` returns the number of states. So indices `i=0...fsm.numberOfStates()-1` are valid arguments to `fsm.getStateAt(i)` method.
 - `std::size_t findIndex(std::string_view name)` returns the index of the state whose name is `name`. The value is on range `0...fsm.numberOfStates()-1`.
 - `const State& findState(std::string_view name)` returns const ref to the state with the given name.
