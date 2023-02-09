@@ -117,7 +117,6 @@ static CoFSM::State greenIdleState(FSM& fsm)
         {
             event >> pStop;     // Stop token is in the payload of the handover event.
             stopToken = std::move(*pStop);
-            event.destroy(pStop); // Explicit destruction needed because stop_token is not trivially destructible.
             iBlinksLeft = iNumberOfBlinks; // Do this many blinks before handing over to another FSM
             event.construct("StartBlinkEvent", iBlinkTimeMs); // iBlinkTimeMs piggybacks on "StartBlinkEvent"
         }

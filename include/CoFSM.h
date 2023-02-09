@@ -17,6 +17,7 @@
 #include <initializer_list>
 #include <assert.h>
 #include <atomic>
+#include <any>
 
 namespace CoFSM {
 
@@ -28,6 +29,9 @@ constexpr std::size_t hardware_constructive_interference_size = 64;
 #endif
 
 static const std::string _sharedEmptyString{};
+
+template <class T>
+concept Trivial = (std::is_trivially_destructible_v<T> || std::is_same_v<T, void>);
 
 // Generic reusable Event class.
 // An object of this type hold its identity in a string_view
@@ -43,7 +47,7 @@ struct Event {
         _name = std::exchange(other._name, "");
         _capacity = std::exchange(other._capacity, 0u);
         _data = std::exchange(other._data, nullptr);
-        _hasNontrivialDestructor = std::exchange(other._hasNontrivialDestructor, false);
+        _anyPtr = std::exchange(other._anyPtr, nullptr);
     }
 
     Event& operator=(Event&& other) noexcept
@@ -53,14 +57,16 @@ struct Event {
             _name = std::exchange(other._name, "");
             _capacity = std::exchange(other._capacity, 0u);
             _data = std::exchange(other._data, nullptr);
-            _hasNontrivialDestructor = std::exchange(other._hasNontrivialDestructor, false);
+            _anyPtr = std::exchange(other._anyPtr, nullptr);
         }
         return *this;
     }
 
     ~Event()
     {
-        assertDestruct();
+        // If *_anyPtr contains an AnyPtr<T> object which points to the buffer,
+        // the object living in the buffer will be destroyed at the destructor of AnyPtr<T>
+        _anyPtr.reset();
         delete [] _data;
     }
 
@@ -68,19 +74,23 @@ struct Event {
     template <class T = void, class... Args>
     T* construct(std::string_view name, Args&&... args)
     {
-        assertDestruct();
         static_assert(!(std::is_same_v<T, void> && sizeof...(Args) > 0),
                       "Void event must not take constructor arguments.");
+        if (_anyPtr && _anyPtr->has_value())
+            *_anyPtr = std::any();  // Destroy the object currently living in the buffer by implicitly invoking AnyPtr<T> destructor.
         if constexpr (std::is_same_v<T, void>) {
             this->_name = name;
-            this->_hasNontrivialDestructor = false;
-            return this->data();
+            void* p = this->data();
+            return p;
         } else {
             this->reserve(sizeof(T));
             ::new (this->_data) T{std::forward<Args>(args)...};
             this->_name = name;
-            this->_hasNontrivialDestructor = !std::is_trivially_destructible_v<T>;
-            return this->dataAs<T>();
+            T* p = this->dataAs<T>();
+            // Store typed pointer into a type erased std::any object.
+            // Note that dynamic memory will not be allocated for AnyPtr<T> object due to Small Buffer Optimization.
+            _anyPtr->emplace<AnyPtr<T>>(p);
+            return p;
         }
     }
 
@@ -89,33 +99,25 @@ struct Event {
     std::decay_t<T>* construct(std::string_view name, T&& t)
     {
         using TT = std::decay_t<T>;
-        assertDestruct();
+        if (_anyPtr && _anyPtr->has_value())
+            *_anyPtr = std::any();  // Destroy the object currently living in the buffer by implicitly invoking AnyPtr<T> destructor.
         this->reserve(sizeof(TT));
         ::new (this->_data) TT{std::forward<T>(t)};
         this->_name = name;
-        this->_hasNontrivialDestructor = !std::is_trivially_destructible_v<TT>;
-        return this->dataAs<TT>();
+        TT* p = this->dataAs<TT>();
+        _anyPtr->emplace<AnyPtr<TT>>(p);
+        return p;
     }
 
     // Destroys the object pointed by _data unless the type T is
     // void or T is trivially destructible.
     // After this call, the event will be empty.
-    // Note: If the data buffer holds a non-trivially destructible object,
-    //       you must call this function before the life-time
-    //       of the Event object ends. Otherwise the object
-    //       stored in the data buffer is winked out of existance
-    //       without proper destruction.
     template<class T = void>
     void destroy(T* = nullptr)
     {
-        if constexpr (std::is_same_v<T, void> || std::is_trivially_destructible_v<T>)
-            assertDestruct(); // We did not call destructor. Check if we should have.
-        else
-            if (_data && this->_hasNontrivialDestructor)
-                this->dataAs<T>()->~T();
-
+        if (_anyPtr && _anyPtr->has_value())
+            *_anyPtr = std::any();  // Destroy the object currently living in the buffer by implicitly invoking AnyPtr<T> destructor.
         this->_name = "";
-        this->_hasNontrivialDestructor = false;
     }
 
     // Reinterprets the data buffer as an object of type T.
@@ -134,10 +136,12 @@ struct Event {
     // Allows you to get a pointer to the payload of type T using syntax "event >> p" where T* p;
     // Returns reference to the payload object so you can also use the result directly without
     // dereferening p. For example: "auto x = (event >> p) + 1;" means "event >> p; auto x = *p + 1;"
+    // If the type of the object stored in the buffer is not T, an exception will be thrown.
+    // So you can not accidentally read the data in a wrong format.
     template<class T>
     T& operator>>(T*& p)
     {
-        p = this->dataAs<T>();
+        p = this->safeCast<T>();
         return *p;
     }
 
@@ -155,24 +159,28 @@ struct Event {
     // Releases the data allocated from the heap and empties the name.
     void clear()
     {
-        assertDestruct();
+        if (!_data)
+            return;
+
+        _anyPtr.reset(); // Destroy the object in the buffer, if any.
         _name = "";
         _capacity = 0;
         delete [] _data;
         _data = nullptr;
-        _hasNontrivialDestructor = false;
     }
 
     // Reserves space for event data. The existing data may be wiped out.
     void reserve(std::size_t size)
     {
         if (_capacity < size) {
-            assertDestruct();
-            delete [] _data;
+            if (!_anyPtr)  // Make a new empty AnyPtr object
+                _anyPtr = std::make_unique_for_overwrite<std::any>();
+            else if (_anyPtr->has_value())
+                *_anyPtr = std::any{};   // Destroy the object in the buffer, if any.
             _name = "";
             _capacity = size;
+            delete [] _data;
             _data = new std::byte[size];
-            _hasNontrivialDestructor = false;
         }
     }
 
@@ -186,9 +194,13 @@ struct Event {
     // Returns true if the event is empty (i.e. name string is not set)
     bool isEmpty() const { return _name.empty(); }
 
-    // Returns the name of the event.
+    // Checks if the event has data in the buffer.
+    bool hasData() const { return (_anyPtr && _anyPtr->has_value()); }
+
+    // Returns the name of the event as a string_view.
     std::string_view name() const { return _name; }
 
+    // The same as above but as a string.
     std::string nameAsString() const { return std::string(_name); }
 
 private:
@@ -196,17 +208,43 @@ private:
     Event(const Event&) = delete;
     Event& operator=(const Event&) = delete;
 
-    // This function is called before the data buffer is about
-    // to wink out of existance. If the buffer is still holding
-    // a non-trivially destructible object which has not been explicitly destroy()'ed,
-    // a runtime_error will be thrown.
-    void assertDestruct() const
+    // A typed pointer to the object in the storage space.
+    // When AnyPtr is destroyed, the object in the storage is also destroyed.
+    template <class T>
+    struct AnyPtr
     {
-        if (_hasNontrivialDestructor) {
-            std::string msg = "Attempt to reuse or destroy an event of type '" + std::string(_name) +
-                              "' without calling event.destroy(pointer-to-data) first.";
-            throw std::runtime_error(msg);
+        AnyPtr(T* p = nullptr) : ptr(p) {}
+        T* ptr;
+        ~AnyPtr()
+        {
+            if (ptr)
+                ptr->~T();
         }
+    };
+
+    // No need for an explicit destructor call if T is trivially destructible.
+    template <Trivial T>
+    struct AnyPtr<T>
+    {
+        AnyPtr(T* p = nullptr) : ptr(p) {}
+        T* ptr;
+    };
+
+    // Get pointer to the data buffer if T is the type of the object in the buffer.
+    // Otherwise, throw an exception.
+    template <class T>
+    T* safeCast()
+    {
+        try {
+            if (_anyPtr && _anyPtr->has_value())
+                return std::any_cast<AnyPtr<T>&>(*_anyPtr).ptr;
+            else
+                throw std::runtime_error("CoFSM::Event does not contain data so data pointer can not be returned.");
+        }
+        catch (const std::bad_any_cast&) {
+            throw std::runtime_error("Attempt to store pointer to the object in CoFSM::Event into a variable of wrong type.");
+        }
+        return nullptr;
     }
 
     // Name of the object store in the data buffer.
@@ -216,10 +254,9 @@ private:
     std::size_t _capacity = 0;
     // Pointer to data buffer
     std::byte* _data = nullptr;
-    // The object which has been constructed in the data buffer
-    // has non-trivial destructor, so destroy must be
-    // called before the buffer is reused for another object.
-    bool _hasNontrivialDestructor = false;
+    // An std::any object which contains an object of type AnyPtr<T> where T is the type
+    // of the object living in the buffer. T = void if there is no object in the buffer.
+    std::unique_ptr<std::any> _anyPtr;
 }; // Event
 
 // Returns true if the name of the event is sv.
@@ -392,9 +429,7 @@ public:
 
     FSM()  { _name = asHex(this); };
     FSM(const FSM&) = delete;
-    FSM(FSM&&) noexcept = default;
     FSM& operator=(const FSM&) = delete;
-    FSM& operator=(FSM&&) noexcept = default;
     ~FSM() = default;
 
     // Returns the name of the FSM

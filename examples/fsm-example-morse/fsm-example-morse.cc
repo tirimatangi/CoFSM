@@ -162,8 +162,6 @@ CoFSM::State transmitReadyState(CoFSM::FSM& fsm)
             // Take the string from the event data and store.
             event >> pString;
             message = std::move(*pString);
-            // String is not trivially destructible so destroy explicitly from the event data.
-            event.destroy(pString);
             symbolsSent = 0;
         }
         else if (event == "TransmissionReadyEvent") {

@@ -429,10 +429,10 @@ Now pass the event around the ring `numRoundsToRepeat` times both clockwise and 
 ```
 **Output:**
 ```
-Based on 10000 rounds around the ring of 1023 states in 0.868624 secs, meaning 10240000 events sent,
-the speed of FSM's execution is 1.17888e+07 state transitions per second.
+Based on 10000 rounds around the ring of 1023 states in 0.86698 secs, meaning 10240000 events sent,
+the speed of FSM's execution is 1.18111e+07 state transitions per second
 ```
-It was pretty fast, actually. An ancient Core i5-4210U running at 2.7 GHz did about 12 million state transitions per second. This means that a single resume-run-suspend cycle took 229 clock cycles on average.
+It is quite fast, actually. An ancient Core i5-4210U running at 2.7 GHz did about 12 million state transitions per second. This means that a single resume-run-suspend cycle took 229 clock cycles on average.
 
 Runnable code and makefile can be found in folder [fsm-example-ring](examples/fsm-example-ring)
 
@@ -509,7 +509,6 @@ When an event arrives, the name of the event indicates the type of the associate
 
 In this case, the type of the object is `std::stop_token`.
 The object is accessed through a pointer (`pStop` in this case) which is acquired from the Event with `event >> pStop`.
-If the object in the storage is trivially destructible (like an int or double), the object will simply wink out of existance without explicit destruction. However, because `std::stop_token` is not trivially destructible, we must call explicit destruction `event.destroy(pStop)`.
 
 Now the Event object is empty and can be reused for sending the next event. In this case, the new name of the event will be `StartBlinkEvent` and the data will be integer `iBlinkTimeMs`. This is done by calling `event.construct("StartBlinkEvent", iBlinkTimeMs)`.
 
@@ -525,7 +524,6 @@ CoFSM::State  IdleState(FSM& fsm)
         {
             event >> pStop;         // Get a pointer to the event's data (which is a stop token).
             stopToken = std::move(*pStop); // Move to a local variable to be used later
-            event.destroy(pStop);   // Explicit destruction needed because stop_token is not trivially destructible.
             event.construct("StartBlinkEvent", iBlinkTimeMs); // iBlinkTimeMs piggybacks on "StartBlinkEvent"
         }
         else if (...)
@@ -542,7 +540,6 @@ The methods are as follows.
     Sets the name of the event as `name` and constructs an object of type `TT = std::decay_t<T>` by calling contructor `TT{std::forward<T>(t)}`. The object is emplaced in the storage of the event. If the current capacity of the storage space is too small, it will be expanded.
     This operation is somewhat similar to [push_back](https://en.cppreference.com/w/cpp/container/vector/push_back) method of `std::vector`.<br>
     Returns pointer to the constructed object (even though the return value is usually ignored). <br>
-    **Note:**  If the data storage of the event is currently holding an object with non-trivial destructor, `destroy()` must be called before the next `construct()` may take place. Otherwise `std::runtime_error` will be thrown. For example:
 ```c++
     std::vector<int> v {1,2,3,4};
     event.construct("VectorEvent", std::move(v));
@@ -550,7 +547,6 @@ The methods are as follows.
     std::vector<int>* pV;
     event >> pV;
     // ... use *pV ...
-    event.destroy(pV); // Vector as non-trivial destructor, remember?
 ```
 - `template <class T = void, class... Args>` <br>
     `T* construct(std::string_view name, Args&&... args)` <br>
@@ -561,7 +557,11 @@ The methods are as follows.
     Note that this does not deallocate the data storage of the event as it will be reused.
     After destroy(), the event becomes empty in the sense that is has neither name nor valid data.
 - `template<class T> T& operator>>(T*& p)` <br>
-    `T* pT; event >> pT;` gets pointer to the object of type T living in the storage space of the event. See the examples above.
+    `T* pT; event >> pT;` gets pointer to the object of type T living in the storage space of the event. See the examples above. <br>
+    This is a type safe way to get access to the object in the storage.
+    If the type of the object is `T`,
+    then the type of the pointer on the right side of `>>` must be `T*`.
+    If it is not, `std::runtime_exception` will be thrown.
 - `void reserve(std::size_t size)` Ensures that the capacity of the storage space is at least `size` bytes.
 - `std::size_t capacity()` returns the cacpcity of the storage space in bytes.
 - `void clear()` Sets the capacity of the storage space to zero and deallocates the buffer. This operation may be needed if a single event uses a massive amount of memory, which is an overkill for the other events which will later be places in the same storage. But normally this is not needed.
@@ -570,14 +570,16 @@ Also, the event becomes empty in the sense that is has neither name nor valid da
 - `std::string_view name()`  Returns the name of the event as a string_view
 - `std::string nameAsString()`  Returns a copy of the name of the event as a heap-allocated string.
 - `bool isEmpty()` Returns true if the event is empty (i.e. it has no name). If a state sends an empty event, the FSM will be suspended.
+- `bool hasData()` Returns true if there is an object stored in the storage.
 - `void* data()` Returns pointer to the beginning of the data storage. Is a `nullptr` if `capacity() = 0`.
 - `template<class T> T* dataAs()` Returns pointer to the beginning of the data storage cast as `T*`. These two methods for getting a pointer to the event's data are identical:
 ```c++
-    T* p1;                       // Method 1
-    event >> p1;
-    auto p2 = event.dataAs<T>(); // Method 2
+    T* p1;
+    event >> p1;                 // Method 1 (safe)
+    auto p2 = event.dataAs<T>(); // Method 2 (may be unsafe)
     assert(p1 == p2);
 ```
+However, `dataAs<T>()` does not enforce the type of the destination pointer like operator `>>` does, so the latter should be preferred.
 
 ### CoFSM::State
 `State`is the return type of every state coroutine. Like every [coroutine](https://en.cppreference.com/w/cpp/language/coroutines), it is associated with a `handle` and a `promise`. Generally you don't need to worry about them or explicitly call any methods of `State` class. Some methods are given below anyway in case you want to experiment with coroutines.
