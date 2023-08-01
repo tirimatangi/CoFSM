@@ -433,6 +433,7 @@ Based on 10000 rounds around the ring of 1023 states in 0.86698 secs, meaning 10
 the speed of FSM's execution is 1.18111e+07 state transitions per second
 ```
 It is quite fast, actually. An ancient Core i5-4210U running at 2.7 GHz did about 12 million state transitions per second. This means that a single resume-run-suspend cycle took 229 clock cycles on average.
+On i5-1135G7 @ 2.40GHz, the numbers are 27 million state transitions per second, meaning 90 cycles per transition.
 
 Runnable code and makefile can be found in folder [fsm-example-ring](examples/fsm-example-ring)
 
